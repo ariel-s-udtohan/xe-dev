@@ -12,6 +12,11 @@
     "build:json:models": "merge-json-cli -i \"models/_component-models.json\" -o \"component-models.json\"",
     "build:json:definitions": "merge-json-cli -i \"models/_component-definition.json\" -o \"component-definition.json\"",
     "build:json:filters": "merge-json-cli -i \"models/_component-filters.json\" -o \"component-filters.json\"",
+    "build:ignite": "rm -rf scripts/ignite && npm run build:ignite:copy && npm run build:ignite:js && npm run build:ignite:css && npm run build:ignite:tokens && rm -rf scripts/ignite/dist",
+    "build:ignite:copy": "mkdir -p scripts/ignite/dist && cp -r node_modules/@ignite/web/dist/compositions node_modules/@ignite/web/dist/primitives node_modules/@ignite/web/dist/tokens node_modules/@ignite/web/dist/utils scripts/ignite/dist && mkdir -p scripts/ignite/dist/themes && cp node_modules/@ignite/web/dist/themes/cms.css scripts/ignite/dist/themes/cms.css",
+    "build:ignite:js": "esbuild 'scripts/ignite/dist/**/*.js' --bundle --format=esm --external:@fortawesome --outbase=scripts/ignite/dist --outdir=scripts/ignite/bundle",
+    "build:ignite:css": "esbuild scripts/ignite/dist/themes/cms.css --bundle --outfile=scripts/ignite/bundle/themes/cms.css",
+    "build:ignite:tokens": "node tools/ignite/extract-tokens.mjs",
     "prepare": "husky"
   },
   "repository": {
@@ -24,8 +29,12 @@
     "url": "https://github.com/adobe/aem-boilerplate/issues"
   },
   "homepage": "https://github.com/adobe/aem-boilerplate#readme",
+  "dependencies": {
+    "@ignite/web": "^0.34.0"
+  },
   "devDependencies": {
     "@babel/eslint-parser": "7.28.6",
+    "esbuild": "^0.28.2",
     "eslint": "8.57.1",
     "eslint-config-airbnb-base": "15.0.0",
     "eslint-plugin-import": "2.32.0",

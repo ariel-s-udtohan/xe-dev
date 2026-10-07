@@ -4,6 +4,17 @@
   move-to-http-header="true"
 >
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!-- The @ignite/web bundles (scripts/ignite/bundle) keep bare Font Awesome Pro
+     imports; resolve them to the local free-icon stand-in. Must precede every
+     module script, and carries the nonce the CSP above requires. -->
+<script nonce="aem" type="importmap">
+  {
+    "imports": {
+      "@fortawesome/pro-solid-svg-icons": "/scripts/components/fontawesome-shim.js",
+      "@fortawesome/pro-regular-svg-icons": "/scripts/components/fontawesome-shim.js"
+    }
+  }
+</script>
 <script nonce="aem" src="/scripts/aem.js" type="module"></script>
 <script nonce="aem" src="/scripts/scripts.js" type="module"></script>
 <link rel="stylesheet" href="/styles/styles.css"/>
