@@ -1,0 +1,98 @@
+# Rebuilds the committed @ignite/web bundle (scripts/ignite/bundle) for a given
+# package version and opens a pull request with the result.
+#
+# Run it from the Actions tab ("Build Ignite bundle" → Run workflow), choosing
+# the branch to build on and the version. It needs the JFROG_NPM_TOKEN and
+# FONTAWESOME_NPM_TOKEN repository secrets (the same as the Build workflow), and
+# "Allow GitHub Actions to create and approve pull requests" enabled under
+# Settings → Actions → General for the pull request step.
+name: Build Ignite bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '@ignite/web version to build (e.g. 0.40.0)'
+        required: true
+        default: '0.40.0'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      BASE: ${{ github.ref_name }}
+    steps:
+    - uses: actions/checkout@v6
+    - name: Use Node.js 24
+      uses: actions/setup-node@v6
+      with:
+        node-version: 24
+    - name: Check the version
+      run: |
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+          echo "::error::'$VERSION' isn't a version number (expected e.g. 0.40.0)"
+          exit 1
+        fi
+    # @ignite/web (Xcel JFrog) and Font Awesome Pro install from private
+    # registries (.npmrc). Tokens come from repository secrets and are written
+    # to the runner's user npmrc only — nothing is committed to the repo.
+    - name: Authenticate private npm registries
+      env:
+        JFROG_NPM_TOKEN: ${{ secrets.JFROG_NPM_TOKEN }}
+        FONTAWESOME_NPM_TOKEN: ${{ secrets.FONTAWESOME_NPM_TOKEN }}
+      run: |
+        for name in JFROG_NPM_TOKEN FONTAWESOME_NPM_TOKEN; do
+          if [ -z "${!name}" ]; then
+            echo "::error::Missing repository secret $name (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+        done
+        npm config set "//xcel.jfrog.io/artifactory/api/npm/npm/:_authToken" "$JFROG_NPM_TOKEN"
+        npm config set "//npm.fontawesome.com/:_authToken" "$FONTAWESOME_NPM_TOKEN"
+    - run: npm ci
+    - name: Install @ignite/web ${{ inputs.version }}
+      run: npm install "@ignite/web@$VERSION" --no-audit --no-fund
+    - name: Build the bundle
+      run: npm run build:ignite
+    - name: Check the bundle
+      run: |
+        test -s scripts/ignite/bundle/themes/tokens.css || { echo "::error::themes/tokens.css wasn't generated"; exit 1; }
+        count=$(find scripts/ignite/bundle -name '*.js' | wc -l)
+        [ "$count" -gt 0 ] || { echo "::error::No component bundles were generated"; exit 1; }
+        echo "Built $count component bundles from @ignite/web $VERSION"
+        # Bare Font Awesome imports must stay resolvable by the import map in head.html.
+        grep -rhoE 'from "@fortawesome/[^"]+"' scripts/ignite/bundle | sort -u
+    - run: npm run lint
+    - name: Open a pull request
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        BRANCH="ignite/$VERSION"
+        HOST=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git checkout -b "$BRANCH"
+        git add scripts/ignite package.json package-lock.json
+        if git diff --cached --quiet; then
+          echo "The bundle is already built from @ignite/web $VERSION; nothing to commit."
+          exit 0
+        fi
+        git commit -m "chore(ignite): rebuild the bundle from @ignite/web $VERSION"
+        git push --force origin "$BRANCH"
+        printf '%s\n' \
+          "Rebuilds \`scripts/ignite/bundle\` from \`@ignite/web\` $VERSION (\`npm run build:ignite\`) and updates \`package.json\` / \`package-lock.json\`." \
+          "" \
+          "Check the blocks that use Ignite components on the preview before merging: component tags, props and bundle paths can change between versions." \
+          "" \
+          "URL for testing:" \
+          "" \
+          "- https://${HOST}--xe-dev--ariel-s-udtohan.aem.page/" > pr-body.md
+        gh pr create --base "$BASE" --head "$BRANCH" \
+          --title "chore(ignite): rebuild the bundle from @ignite/web $VERSION" \
+          --body-file pr-body.md \
+          || echo "::warning::Couldn't open the pull request; the branch $BRANCH is pushed — open it from GitHub."

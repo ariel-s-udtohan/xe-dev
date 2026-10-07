@@ -32,7 +32,15 @@ Build workflow fails with a clear error if either is missing.
 
 ## Updating the bundle
 
-After changing the `@ignite/web` version:
+**From GitHub:** run the **Build Ignite bundle** workflow (Actions tab → Run
+workflow), pick the branch and enter the version (for example `0.40.0`). It
+installs that version with the repository secrets, runs `build:ignite` and
+lint, and opens a pull request with the new bundle, `package.json` and
+`package-lock.json`. It needs "Allow GitHub Actions to create and approve pull
+requests" enabled under Settings → Actions → General; otherwise it pushes the
+`ignite/<version>` branch for you to open the pull request.
+
+**Locally**, with registry access, after changing the `@ignite/web` version:
 
 ```sh
 npm install
